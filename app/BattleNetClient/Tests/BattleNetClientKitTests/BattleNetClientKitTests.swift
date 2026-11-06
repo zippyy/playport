@@ -35,10 +35,11 @@ final class BattleNetClientKitTests: XCTestCase {
 
     func hash(_ hex: String) -> TACTHash { TACTHash(hex: hex)! }
 
-    /// Blizzard's recorded answers for every product on the fixed list, in every region.
+    /// Blizzard's recorded answers for the four products captured before Forever launched.
+    /// Forever is checked against live Blizzard endpoints; the beta fixtures are not release fixtures.
     func recorded() throws -> Recorded {
         let t = Recorded()
-        for p in BattleNetProduct.allCases {
+        for p in [BattleNetProduct.wow, .wowClassic, .wowClassicEra, .wowAnniversary] {
             t.set("/v2/products/\(p.code)/versions", try fixture("\(p.code)-versions.psv"))
             t.set("/v2/products/\(p.code)/cdns", try fixture("\(p.code)-cdns.psv"))
             let versions = try fixture("\(p.code)-versions.psv")
@@ -109,7 +110,7 @@ final class BattleNetClientKitTests: XCTestCase {
 
         // Every product's x64 client is tagged `x86_64` (`tags_64bit`): an install's `.build.info`
         // naming that tag holds the x64 client (BattleNetUpdateCheck.lacksClient).
-        for product in BattleNetProduct.allCases {
+        for product in [BattleNetProduct.wow, .wowClassic, .wowClassicEra, .wowAnniversary] {
             let pc = try await client.build(product, .eu).productConfig
             XCTAssertEqual(pc.x64Tags, [BattleNetProduct.x64ClientTag], product.code)
             XCTAssertEqual(pc.platformTags, ["Windows"], product.code)
