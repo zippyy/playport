@@ -110,7 +110,7 @@ final class BattleNetClientKitTests: XCTestCase {
 
         // Every product's x64 client is tagged `x86_64` (`tags_64bit`): an install's `.build.info`
         // naming that tag holds the x64 client (BattleNetUpdateCheck.lacksClient).
-        for product in [BattleNetProduct.wow, .wowClassic, .wowClassicEra, .wowAnniversary] {
+        for product in BattleNetProduct.allCases {
             let pc = try await client.build(product, .eu).productConfig
             XCTAssertEqual(pc.x64Tags, [BattleNetProduct.x64ClientTag], product.code)
             XCTAssertEqual(pc.platformTags, ["Windows"], product.code)
