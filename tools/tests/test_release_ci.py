@@ -3,8 +3,9 @@
 
 Approve each entire executable workflow, not an upload-command/suffix denylist.
 New jobs/actions/scripts/permissions must be reviewed here as well as in YAML.
-checks.yml tests the source; pages.yml publishes site/ (the landing page) and
-nothing else.
+checks.yml tests the source; pages.yml publishes site/ (the landing page).
+forever-ipa.yml is a manually triggered, unsigned artifact-only build and never signs
+with credentials, installs on a device or publishes a release.
 This cannot defend against changes to this test or uploads hidden in tested code.
 """
 
@@ -76,7 +77,8 @@ jobs:
       - id: deploy
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
 """
-APPROVED = {"checks.yml": APPROVED_CHECKS, "pages.yml": APPROVED_PAGES}
+APPROVED_FOREVER = "# SPDX-License-Identifier: GPL-3.0-or-later\n# Manual, unsigned IPA build. No Apple account or signing certificate is needed.\n# Required repository secrets: PLAYPORT_SDK_ARCHIVE_URL, PLAYPORT_SDK_SHA256,\n# PLAYPORT_MINGW_ARCHIVE_URL, PLAYPORT_MINGW_SHA256.\n# The SDK archive must contain the xtool Darwin SDK tree (Developer/Toolchains/...,\n# Platforms/iPhoneOS.platform/... and Platforms/MacOSX.platform/...).\n# The mingw archive must contain the llvm-mingw 20260922 toolchain already patched\n# with the arm64ec CRT rebuild described in docs/BUILDING.md.\nname: Playport Forever unsigned IPA\non:\n  workflow_dispatch:\npermissions:\n  contents: read\nconcurrency:\n  group: playport-forever-ipa\n  cancel-in-progress: false\njobs:\n  build:\n    runs-on: ubuntu-24.04\n    timeout-minutes: 360\n    env:\n      PLAYPORT_SDK_ARCHIVE_URL: ${{ secrets.PLAYPORT_SDK_ARCHIVE_URL }}\n      PLAYPORT_SDK_SHA256: ${{ secrets.PLAYPORT_SDK_SHA256 }}\n      PLAYPORT_MINGW_ARCHIVE_URL: ${{ secrets.PLAYPORT_MINGW_ARCHIVE_URL }}\n      PLAYPORT_MINGW_SHA256: ${{ secrets.PLAYPORT_MINGW_SHA256 }}\n      JOBS: \"4\"\n    steps:\n      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2\n        with:\n          persist-credentials: false\n          submodules: recursive\n      - name: Ensure the build inputs are configured\n        shell: bash\n        run: |\n          set -euo pipefail\n          for key in PLAYPORT_SDK_ARCHIVE_URL PLAYPORT_SDK_SHA256 PLAYPORT_MINGW_ARCHIVE_URL PLAYPORT_MINGW_SHA256; do\n            if [ -z \"${!key}\" ]; then\n              echo \"::error::Missing ${key} repository secret. See docs/BUILDING.md; GitHub runners do not ship Apple's iOS SDK or Playport's patched MinGW.\"\n              exit 1\n            fi\n          done\n      - name: Free runner space and install host prerequisites\n        shell: bash\n        run: |\n          set -euo pipefail\n          df -h .\n          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache /usr/share/dotnet /usr/local/share/powershell\n          sudo apt-get update\n          sudo apt-get install -y --no-install-recommends build-essential bison flex gettext cmake ninja-build meson python3-pefile xxd openssl patch git rsync p7zip-full curl jq libssl-dev libxml2-dev\n          df -h .\n      - name: Unpack checksum-verified build inputs\n        shell: bash\n        run: |\n          set -euo pipefail\n          mkdir -p .work/inputs/darwin-sdk .work/inputs/llvm-mingw .work/downloads\n          curl --fail --location --retry 3 --output .work/downloads/sdk.tar.gz \"$PLAYPORT_SDK_ARCHIVE_URL\"\n          echo \"$PLAYPORT_SDK_SHA256  .work/downloads/sdk.tar.gz\" | sha256sum -c -\n          tar -xzf .work/downloads/sdk.tar.gz -C .work/inputs/darwin-sdk\n          curl --fail --location --retry 3 --output .work/downloads/mingw.tar.gz \"$PLAYPORT_MINGW_ARCHIVE_URL\"\n          echo \"$PLAYPORT_MINGW_SHA256  .work/downloads/mingw.tar.gz\" | sha256sum -c -\n          tar -xzf .work/downloads/mingw.tar.gz -C .work/inputs/llvm-mingw\n          rm -f .work/downloads/*.tar.gz\n          test -e .work/inputs/llvm-mingw/aarch64-w64-mingw32/lib/libgcc.a\n          test -x .work/inputs/llvm-mingw/bin/aarch64-w64-mingw32-clang\n      - name: Verify Linux toolchain requirements\n        shell: bash\n        run: |\n          set -euo pipefail\n          for cmd in clang clang++ ld64.lld llvm-ar llvm-nm llvm-objdump llvm-objcopy llvm-lipo swift; do\n            command -v \"$cmd\" >/dev/null || { echo \"::error::Missing $cmd. Install the LLVM 22 and Swift toolchains specified in docs/BUILDING.md on the build runner.\"; exit 1; }\n          done\n          if ! clang --version | head -1 | grep -Eq 'version 22\\.'; then\n            echo \"::error::This build requires host LLVM 22.x (docs/BUILDING.md).\"\n            exit 1\n          fi\n      - name: Build unsigned release IPA\n        shell: bash\n        env:\n          LLVM_MINGW: ${{ github.workspace }}/.work/inputs/llvm-mingw\n          DARWIN_SDK: ${{ github.workspace }}/.work/inputs/darwin-sdk\n        run: |\n          set -euo pipefail\n          ./pp setup\n          ./pp build --variant release --unsigned\n          find .work/out -name '*release-unsigned-*.ipa' -type f -print\n      - name: Collect verified IPA\n        shell: bash\n        run: |\n          set -euo pipefail\n          mkdir -p .work/upload\n          mapfile -t ipa < <(find .work/out -name '*release-unsigned-*.ipa' -type f)\n          test \"${#ipa[@]}\" -eq 1 || { echo \"::error::Expected exactly one verified unsigned IPA\"; exit 1; }\n          cp \"${ipa[0]}\" .work/upload/Playport-Forever-unsigned.ipa\n          sha256sum .work/upload/*.ipa > .work/upload/SHA256SUMS\n      - name: Upload unsigned IPA\n        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2\n        with:\n          name: Playport-Forever-unsigned-IPA\n          path: .work/upload/\n          if-no-files-found: error\n          retention-days: 7\n"
+APPROVED = {"checks.yml": APPROVED_CHECKS, "pages.yml": APPROVED_PAGES, "forever-ipa.yml": APPROVED_FOREVER}
 
 
 def executable_lines(text):
@@ -91,7 +93,7 @@ def workflow_problems(directory):
         return ["workflow directory must be a regular directory"]
     entries = sorted(directory.iterdir())
     if [entry.name for entry in entries] != sorted(APPROVED):
-        return ["only the reviewed checks.yml and pages.yml workflows are allowed"]
+        return ["only the reviewed checks.yml, pages.yml and forever-ipa.yml workflows are allowed"]
     for workflow in entries:
         name = workflow.name
         if workflow.is_symlink() or not workflow.is_file():
@@ -106,7 +108,7 @@ def workflow_problems(directory):
 
 
 class PublicCI(unittest.TestCase):
-    def test_repository_workflows_are_source_only(self):
+    def test_repository_workflows_match_approved_policies(self):
         self.assertEqual(workflow_problems(REPO / ".github/workflows"), [])
 
 
@@ -122,6 +124,8 @@ class PolicyRegressions(unittest.TestCase):
         self.workflow.write_text(APPROVED_CHECKS, encoding="utf-8")
         self.pages = self.directory / "pages.yml"
         self.pages.write_text(APPROVED_PAGES, encoding="utf-8")
+        self.forever = self.directory / "forever-ipa.yml"
+        self.forever.write_text(APPROVED_FOREVER, encoding="utf-8")
 
     def reject(self, text):
         self.workflow.write_text(text, encoding="utf-8")
@@ -196,6 +200,16 @@ class PolicyRegressions(unittest.TestCase):
                 self.assertTrue(workflow_problems(self.directory))
         self.pages.unlink()
         self.assertTrue(workflow_problems(self.directory))
+
+    def test_forever_build_is_manual_and_does_not_use_signing_credentials(self):
+        self.assertIn("  workflow_dispatch:", APPROVED_FOREVER)
+        self.assertNotIn("  push:", APPROVED_FOREVER)
+        self.assertNotIn("  pull_request:", APPROVED_FOREVER)
+        self.assertIn("./pp build --variant release --unsigned", APPROVED_FOREVER)
+        self.assertNotIn("secrets.SIGNING", APPROVED_FOREVER)
+        self.forever.write_text(APPROVED_FOREVER.replace("--unsigned", "--sign"), encoding="utf-8")
+        self.assertTrue(workflow_problems(self.directory))
+        self.forever.write_text(APPROVED_FOREVER, encoding="utf-8")
 
     def test_new_or_renamed_workflows_and_nested_entries_are_rejected(self):
         for name in ("release.yml", "publish.yaml", "checks.yaml", "hidden.txt"):

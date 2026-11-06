@@ -1,14 +1,14 @@
 version: 1
-# The app's one identity (docs/BUILDING.md, "Signing"): each build, dev or
+# Fork identity for the Forever variant: each build, dev or
 # release, installs over this one slot. The display name comes from
 # Info.plist. This file builds the dev variant, whose executable stays
 # S1Probe; build/stages/stage-artifacts.py release generates the release variant's
 # copy from it, with product Playport and Runtime/ at its package root
 # (docs/BUILDING.md, "Variants").
-bundleID: dev.playport.app
+bundleID: xyz.techrelay.playport.forever
 product: S1Probe
 # The JIT helper (docs/ARCHITECTURE.md, "Built-in JIT"): PlugIns/PlayportJIT.appex,
-# bundle ID dev.playport.app.PlayportJIT, its own free-team App ID
+# bundle ID xyz.techrelay.playport.forever.PlayportJIT, its own free-team App ID
 # and profile. It takes no device slot. Its resource is Playport's JIT protocol
 # script, copied to the .appex root.
 extensions:

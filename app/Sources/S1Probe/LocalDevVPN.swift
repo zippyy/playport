@@ -6,8 +6,8 @@
 // turns LocalDevVPN on for the player instead, when a Play, a restart or
 // Settings finds the tunnel down.
 //
-// - LocalDevVPN's `localdevvpn://enable?scheme=playport` starts its tunnel and,
-//   about a second later, opens `playport://`, which brings Playport back.
+// - LocalDevVPN's `localdevvpn://enable?scheme=playportforever` starts its tunnel and,
+//   about a second later, opens `playportforever://`, which brings Playport back.
 //   Playport's scheme (Info.plist CFBundleURLTypes) is that way back only: the
 //   app ignores what a URL carries (RootView; decision 0012).
 // - An open that fails means LocalDevVPN is not installed: its App Store page
@@ -37,7 +37,7 @@ enum LocalDevVPN {
     }
 
     static let appStore = URL(string: "https://apps.apple.com/app/id6755608044")!
-    private static let enable = URL(string: "localdevvpn://enable?scheme=playport")!
+    private static let enable = URL(string: "localdevvpn://enable?scheme=playportforever")!
     private static let lateAfter: TimeInterval = 60
 
     private struct Pending: Sendable {
